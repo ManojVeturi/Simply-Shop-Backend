@@ -60,6 +60,7 @@ def login_view(request):
 # ---------- CART ----------
 
 @api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
 def get_cart(request):
     cart_items = CartItem.objects.filter(user=request.user)
     serializer = CartItemSerializer(cart_items, many=True)
@@ -67,6 +68,7 @@ def get_cart(request):
 
 
 @api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
 def add_to_cart(request):
     user = request.user
     data = request.data
@@ -77,9 +79,11 @@ def add_to_cart(request):
     image = data.get('image')
     quantity = int(data.get('quantity', 1))
 
-    if not product_id or not title or not price:
-        return Response({'detail': 'Missing fields'},
-                        status=status.HTTP_400_BAD_REQUEST)
+    if not product_id or not title or price is None:
+        return Response(
+            {'detail': 'Missing fields'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
 
     cart_item, created = CartItem.objects.get_or_create(
         user=user,
@@ -91,27 +95,38 @@ def add_to_cart(request):
             'quantity': quantity,
         }
     )
+
     if not created:
         cart_item.quantity += quantity
         cart_item.save()
 
-    return Response(CartItemSerializer(cart_item).data,
-                    status=status.HTTP_201_CREATED)
+    return Response(
+        CartItemSerializer(cart_item).data,
+        status=status.HTTP_201_CREATED
+    )
 
 
 @api_view(['PATCH', 'DELETE'])
+@permission_classes([permissions.IsAuthenticated])
 def update_cart_item(request, pk):
     try:
-        cart_item = CartItem.objects.get(pk=pk, user=request.user)
+        cart_item = CartItem.objects.get(
+            pk=pk,
+            user=request.user
+        )
     except CartItem.DoesNotExist:
-        return Response({'detail': 'Item not found'},
-                        status=status.HTTP_404_NOT_FOUND)
+        return Response(
+            {'detail': 'Item not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
 
     if request.method == 'PATCH':
         quantity = request.data.get('quantity')
+
         if quantity is not None:
             cart_item.quantity = int(quantity)
             cart_item.save()
+
         return Response(CartItemSerializer(cart_item).data)
 
     if request.method == 'DELETE':
